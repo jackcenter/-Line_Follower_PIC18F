@@ -7,6 +7,7 @@
 
 
 #include <xc.h>
+#include <stdlib.h>
 #include <pic18f87k22.h>
 #include <motors.h>
 
@@ -34,10 +35,59 @@ void init_motors(){
 
     T2CONbits.TMR2ON = 1;   // Start the timer
     
+	STBY = 0;
+
     AIN1 = 0;
     AIN2 = 1;
-    STBY = 1;
     
     BIN1 = 1;
     BIN2 = 0;
 }
+
+
+void set_duty_cycle(char side, signed char duty_cycle){
+		
+	if (side == 'r'){
+
+		if (duty_cycle >= 0){
+			AIN1 = 0;
+			AIN2 = 1;
+		}
+
+		else {
+			AIN1 = 1;
+			AIN2 = 0;
+		}
+
+		CCPR4L = abs(duty_cycle);
+	}
+
+	else if (side == 'l'){
+		
+		if (duty_cycle >= 0){
+			BIN1 = 1;
+			BIN2 = 0;
+		}
+
+		else {
+			BIN1 = 0;
+			BIN2 = 1;
+		}
+
+		CCPR5L = abs(duty_cycle);
+	}
+
+}
+
+void motors_brake(){
+	AIN1 = 0;
+	AIN2 = 0;
+	BIN1 = 0;
+	BIN2 = 0;
+}
+
+void motors_drive(signed char dc_right, singed char dc_left){
+	set_duty_cycle('r', dc_right);
+ 	set_duty_cycle('l', dc_left);
+}	
+

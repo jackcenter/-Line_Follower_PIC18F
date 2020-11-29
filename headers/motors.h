@@ -19,6 +19,9 @@ struct Motor
 };
 
 void init_motors(void);
+void set_motor_duty_cycle(char, signed char);
+void motors_brake(void);
+void motors_drive(signed char, signed char);
 
 #endif
 
