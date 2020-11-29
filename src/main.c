@@ -65,7 +65,27 @@ void main(void) {
     char display_val = 0b11111110;
     
     while(1){
-         
+        
+        motors_engage();
+        
+        motors_drive(25, 25);
+        __delay_ms(1000);
+        
+        motors_brake();
+        __delay_ms(1000);
+        
+        motors_drive(-50, -50);
+        __delay_ms(1000);
+        
+        motors_brake();
+        __delay_ms(1000);
+        
+        motors_drive(-25, 75);
+        __delay_ms(1000);
+        
+        motors_brake();
+        __delay_ms(1000);
+
         if (go_flag == 1){
             run_sleep_routine();
         }  

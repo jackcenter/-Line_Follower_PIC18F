@@ -86,8 +86,17 @@ void motors_brake(){
 	BIN2 = 0;
 }
 
-void motors_drive(signed char dc_right, singed char dc_left){
+
+
+void motors_drive(signed char dc_right, signed char dc_left){
 	set_duty_cycle('r', dc_right);
  	set_duty_cycle('l', dc_left);
 }	
 
+void motors_engage(){
+    STBY = 1;
+}
+
+void motors_disengage(){
+    STBY = 0;
+}
