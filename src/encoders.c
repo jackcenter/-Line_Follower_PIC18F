@@ -36,20 +36,3 @@ struct Encoder init_encoder(char pin_A, char pin_B){
     
     return encoder_new;
 }
-
-//void update_encoder(struct Encoder *encoder){
-//    static signed char truth_table[4][4] = {
-//        {0, 1, -1, 0},
-//        {-1, 0, 0, 1},
-//        {1, 0, 0, -1},
-//        {0, -1, 1, 0}
-//    };
-//    
-//    if (encoder->reading_last != encoder->reading_next){
-//        // if reading has changed, find action, in/decrement, updated readings
-//        char inc = truth_table[encoder->reading_last][encoder->reading_next];
-//        encoder->count += inc;
-//        encoder->reading_last = encoder->reading_next;
-//    }
-//}
-
