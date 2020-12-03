@@ -3,6 +3,14 @@
  * Author: Jack
  *
  * Created on November 17, 2020, 7:58 PM
+ * 
+ * TMR1 - main.c, PS 1
+ * TMR2 - motors.c, PS 4
+ *
+ * CCP4 - motors.h, TMR2
+ * CCP5 - motors.h, TMR2
+ * CCP6 - observer, pid, TMR1
+ * CCP7 - display, TMR 1
  */
 
 #include <xc.h>
@@ -58,9 +66,16 @@ char update_sensor(char);
 void update_encoders(void);
 
 void main(void) {
+	/* TODO: load byte on tmr
+	   TODO: update IR array after all sensors have been read
+	   (consider taking average of several measurments
+	   Read encoders and store values
+       Read IR array and store values	
+	*/
+
     init();
-    start_ADC();
-    
+	
+       
     char adc_reading_number = 0;
     char display_val = 0b11111110;
     
@@ -68,7 +83,7 @@ void main(void) {
         
         motors_engage();
         
-        motors_drive(25, 25);
+/*        motors_drive(25, 25);
         __delay_ms(1000);
         
         motors_brake();
@@ -85,10 +100,7 @@ void main(void) {
         
         motors_brake();
         __delay_ms(1000);
-
-        if (go_flag == 1){
-            run_sleep_routine();
-        }  
+*/
         
         if (adc_flag != 0){
             adc_reading_number += 1;
@@ -121,6 +133,8 @@ void init(){
     IR_1.next_sensor = &IR_2;
     IR_2.next_sensor = &IR_3;
     IR_3.next_sensor = &IR_1; 
+
+	T1CON = 0b0000101
     
     for (int i = 0; i < 2; ++i){
         load_byte(0xFF);
@@ -200,18 +214,25 @@ void __interrupt() HiPriISR(void) {
     
     while(1) {
         if (PIR1bits.SSP1IF == 1) {
-            display_byte();
+            // SPI is ready
+			display_byte();
             PIR1bits.SSP1IF = 0;
             continue;
         }
         
         else if (INTCONbits.INT0IF == 1){
-            go_flag = execute_delivery();
+			// GO button was pushed
+			if (go_flag == 1){
+				go_flag = pause_delivery()
+			}
+
+			else if (go_flag == 0){
+				go_flag == execute_delivery();
+			}
+
             INTCONbits.INT0IF = 0;
         }
         
-       
-        // todo update blink alive led 100ms to 900ms
         
         break;      
     }
@@ -225,7 +246,8 @@ void __interrupt(low_priority) LoPriISR(void)
 {
     // Save temp copies of WREG, STATUS and BSR if needed.
     while(1) {
-        if( PIR1bits.ADIF ){    //ADC acquisition finished
+        if( PIR1bits.ADIF ){    
+			// ADC acquisition finished
             adc_reading = read_and_update_ADC(sensor_next);
             adc_flag = 1;
             PIR1bits.ADIF = 0;              
@@ -233,11 +255,13 @@ void __interrupt(low_priority) LoPriISR(void)
         }
         
         else if (INTCONbits.RBIF == 1){
-            // TODO: make this based on encoder
+            // External encoder interrupt detected
             update_encoders();
             INTCONbits.RBIF = 0;
         }
-        // TODO load display byte every 20 ms
+
+        // TODO load display byte every 20 ms, including blink
+		// Update PID measurments every 10 ms, inputs every 100ms
         break;     
     }
 }

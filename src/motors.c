@@ -28,10 +28,10 @@ void init_motors(){
     PR2 = 99;               // TMR2 Period Register for 10kHz
     
     CCP4CON = 0b00001100;   // PWM mode
-    CCPR4L = 50;             // 50 duty cycle
+    CCPR4L = 0;             // 0% duty cycle
 
     CCP5CON = 0b00001100;   // PWM mode
-    CCPR5L = 50;           // 50% duty cycle    
+    CCPR5L = 0;           	// 0% duty cycle    
 
     T2CONbits.TMR2ON = 1;   // Start the timer
     

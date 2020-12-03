@@ -7,6 +7,8 @@
 
 #include <xc.h>
 #include <pic18f87k22.h>
+#include <ir_sensors.h>
+#include <motors.h>
 #include <go_button.h>
 
 #define GO_T TRISB0
@@ -20,5 +22,27 @@ void init_go_button(){
 }
 
 char execute_delivery(){
-    return 1;
+    // could add a light thing here
+	start_ADC();
+	motors_drive(0, 0)
+	motors_engage();
+
+	return 1;	// robot is running
+}
+
+char enter_sleep_mode(){
+	motors_disengage();
+	stop_ADC()
+	// could add a light thing here
+	display_value = 0;
+	Sleep();
+
+	return 0;	// robot was asleep
+}
+
+char pause_delivery(){
+	motors_brake();
+	motors_disengage();
+
+	return 0;	// robot is stopped, will continue on next push
 }

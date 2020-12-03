@@ -12,6 +12,8 @@
 
 void init_go_button(void);
 char execute_delivery(void);
+char enter_sleep_mode(void);
+char pause_delivery(void)
 
 #endif	
 
