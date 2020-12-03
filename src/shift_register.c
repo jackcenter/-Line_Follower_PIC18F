@@ -18,6 +18,11 @@
 #define RCL_T TRISC2
 #define RCL_L LATC2
 
+#define BLINK_ON 2          // DISPLAY cylces to stay on
+#define BLINK_OFF 18        // DISPLAY cycles to stay off
+
+extern char display_value;
+
 
 void init_SPI() {
 
@@ -46,4 +51,24 @@ void load_byte(char val) {
 void display_byte() {
     LATCbits.RCL_L = 0;
     LATCbits.RCL_L = 1;
+}
+
+char blink_handler(char count){
+    if (count != 0){
+        --count;
+    }
+
+    else if (display_value & 0b00000001){
+        // led is on
+        display_value ^= 0b00000001;    // toggle led off
+        count = BLINK_OFF;
+    }
+
+    else{
+        // led is off
+        display_value ^= 0b00000001;    // toggle led on
+        count = BLINK_ON ;
+    }
+
+    return count;
 }

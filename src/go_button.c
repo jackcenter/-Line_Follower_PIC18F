@@ -19,6 +19,14 @@ extern char display_value;
 void init_go_button(){
     TRISBbits.GO_T = 1;
     INTCON2bits.INTEDG0 = 1;
+    
+    // Debounce
+    CCP7CON = 0b00001010;           // Compare generates software interrupt
+    CCPTMRS1bits.C7TSEL1 = 0;       // CCP7 -> TMR1
+    CCPTMRS1bits.C7TSEL0 = 0;
+    PIR4bits.CCP7IF = 0;            // clear flag
+    IPR4bits.CCP7IP = 0;            // low pri
+    PIE4bits.CCP7IE = 0;            // enable
             
     enable_go_button();
 }

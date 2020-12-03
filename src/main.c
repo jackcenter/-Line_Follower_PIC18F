@@ -40,10 +40,8 @@
 #define ADC_CUTOFF 3200
 #define OBSERVE 5000        // ps8 instructions for 10ms
 #define CONTROL 50000       // ps8 instructions for 100ms
-#define DISPLAY 10000       // ps8 instructions for 20ms
+#define DISPLAY 25000        // ps8 instructions for 50ms
 #define DEBOUNCE 10000      // ps8 instructions for 20ms
-
-
 
 // PORT B
 #define ENC_1A 5
@@ -68,7 +66,8 @@ struct IRSensor *sensor_next = &IR_1;
 struct Encoder encoder_A; 
 char encoder_readings_old = 0;
 
-char display_value = 1;
+char display_value = 0;
+char blink_count = 0;
 
 void init(void);
 void run_sleep_routine(void);
@@ -148,15 +147,6 @@ void init(){
     IPR4bits.CCP6IP = 0;            // low pri
     PIE4bits.CCP6IE = 0;            // enable
     
-    // debounce
-    CCP7CON = 0b00001010;           // Compare generates software interrupt
-    CCPTMRS1bits.C7TSEL1 = 0;       // CCP7 -> TMR1
-    CCPTMRS1bits.C7TSEL0 = 0;
-    PIR4bits.CCP7IF = 0;            // clear flag
-    IPR4bits.CCP7IP = 0;            // low pri
-    PIE4bits.CCP7IE = 0;            // enable
-    
-        
     RCONbits.IPEN = 1;              // Enable priority levels
     INTCONbits.GIEL = 1;            // Enable low-priority interrupts to CPU
     INTCONbits.GIEH = 1;            // Enable all interrupts
@@ -184,29 +174,9 @@ void init(){
         __delay_ms(500);
     }
     
-    go_flag = 0;
     Sleep();
-
 }
 
-//void run_sleep_routine(){
-//    const char x[] = {0xFF, 0xFE, 0xFD, 0xFB, 0xF7, 0xEF, 0xDF, 0xBF, 0x7F, 
-//                      0xFF}; 
-//    stop_ADC();     // delays are way off with ADC running
-//        for (int i = 0; i<10; ++i){
-//            load_byte(x[i]^0xFF);
-//            __delay_ms(100);
-//        }
-//
-//        Sleep();
-//
-//        for (int i = 9; i >= 0; --i){
-//            load_byte(x[i]^0xFF);
-//            __delay_ms(100);
-//        }
-//        start_ADC();
-//        go_flag = 0;
-//}
 
 char process_measurement(const short reading, char display_val){
 
@@ -317,8 +287,18 @@ void __interrupt(low_priority) LoPriISR(void)
             PIR4bits.CCP7IF = 0;
             INTCONbits.INT0IF = 0;
             INTCONbits.INT0IE = 1;      // enable external interrupt
-            continue;
+            continue;   
+        }
+        
+        else if (PIR4bits.CCP6IF){
             
+            CCPR6L +=(char)(DISPLAY & 0x00FF);
+            CCPR6H += (char)((DISPLAY >> 8) & 0x00FF);
+            
+            blink_count = blink_handler(blink_count);
+            load_byte(display_value);
+            PIR4bits.CCP6IF = 0;
+            continue;
         }
         // TODO load display byte every 20 ms, including blink
 		// Update PID measurments every 10 ms, inputs every 100ms

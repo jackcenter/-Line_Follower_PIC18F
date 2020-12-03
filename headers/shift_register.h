@@ -13,6 +13,7 @@
 void init_SPI(void);
 void load_byte(char);
 void display_byte(void);
+char blink_handler(char);
 
 #endif
 
