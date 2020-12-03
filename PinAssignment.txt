@@ -1,0 +1,28 @@
+Board Pin // PIC Pin
+
+74HC595 - SPI
+11 SCK // RC3
+12 LC  // RC2
+14 SDO // RC5
+
+Encoders
+ 0 ENC1_A // RB4
+ 1 ENC1_B // RB5
+ 2 ENC2_A // RB6
+ 3 ENC2_B // RB7
+
+Motors
+10 PWMB // RG4
+11 BIN2 // RF2
+12 BIN1 // RF1
+13 STBY // RG0
+14 AIN1 // RG1
+15 AIN2 // RG2
+16 PWMA // RG3
+
+IR Sensors
+ 0 AN0 // RA0 
+ 1 AN1 // RA1
+ 2 AN2 // RA2
+ 3 AN3 // RA3
+ 4 AN4 // RA4

@@ -36,3 +36,14 @@ struct Encoder init_encoder(char pin_A, char pin_B){
     
     return encoder_new;
 }
+
+void start_encoders(){
+    INTCONbits.RBIF = 0;        // clear flag
+    INTCONbits.RBIE = 1;        // enable Interrupt-on-Change
+}
+
+void stop_encoders(){
+    INTCONbits.RBIE = 0;        // enable Interrupt-on-Change
+    INTCONbits.RBIF = 0;        // clear flag
+}
+

@@ -17,22 +17,25 @@ void init_ADC(struct IRSensor *sensor){
     TRISAbits.TRISA2 = 1;
     
     PIR1bits.ADIF = 0;      // Clear
-    
     IPR1bits.ADIP = 0;      // Low priority
     
     ADCON0 = sensor->adcon0_value;
+    stop_ADC();
 }
 
 void start_ADC(){
     ADCON0bits.ADON = 1;
     ADCON0bits.GO = 1;
+    PIR1bits.ADIF = 0;
     PIE1bits.ADIE = 1;
 }
 
 void stop_ADC(){
     PIE1bits.ADIE = 0;
+    PIR1bits.ADIF = 0;
     ADCON0bits.ADON = 0;
     ADCON0bits.GO = 0;
+    
 }
 
 short read_and_update_ADC(struct IRSensor *next_sensor){
