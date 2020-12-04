@@ -16,9 +16,9 @@
 void init_go_button(void);
 void enable_go_button(void);
 void disable_go_button(void);
-char execute_delivery(void);
-char enter_sleep_mode(void);
-char pause_delivery(void);
+void execute_delivery(void);
+void enter_sleep_mode(void);
+void pause_delivery(void);
 char go_button_handler(char);
 
 #endif	

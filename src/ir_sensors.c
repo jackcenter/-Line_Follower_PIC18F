@@ -48,7 +48,7 @@ short read_and_update_ADC(struct IRSensor *next_sensor){
 char convert_measurement_to_binary(short val, short max){
     char result = 0;
     
-    if (val > max){
+    if (val >= max){
         result = 1;
     }
     

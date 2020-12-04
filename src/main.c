@@ -37,10 +37,10 @@
 #define IR4 0b00010001
 #define READINGS_MAX 2
 #define SENSORS_MAX 4
-#define ADC_CUTOFF 3200
+#define ADC_CUTOFF 1000
 #define OBSERVE 5000        // ps8 instructions for 10ms
 #define CONTROL 50000       // ps8 instructions for 100ms
-#define DISPLAY 25000        // ps8 instructions for 50ms
+#define DISPLAY 25000       // ps8 instructions for 50ms
 #define DEBOUNCE 10000      // ps8 instructions for 20ms
 
 // PORT B
@@ -54,6 +54,8 @@ char button_state_0 = 0;
 
 char adc_flag = 0;
 short adc_reading = 0;
+char IR_meas_array = 0;
+char IR_temp_array = 0;
 
 struct IRSensor IR_1 = {0b00000101, 0, 6, 1, 0};
 struct IRSensor IR_2 = {0b00001001, 1, 5, 0, 0};
@@ -71,14 +73,15 @@ char blink_count = 0;
 
 void init(void);
 void run_sleep_routine(void);
-char process_measurement(const short, const char);
+void process_measurement(const short, char *, char *);
 char update_sensor(char);
 void update_encoders(void);
+void convert_array_to_inputs(signed char *, signed char *, const char);
 
 void main(void) {
-	/* TODO: load byte on tmr
+	/* 
 	   TODO: update IR array after all sensors have been read
-	   (consider taking average of several measurments
+	   (consider taking average of several measurements
 	   Read encoders and store values
        Read IR array and store values	
 	*/
@@ -86,7 +89,6 @@ void main(void) {
     init();
 	
     char adc_reading_number = 0;
-    char display_val = 0b11111110;
     
     while(1){
        
@@ -120,17 +122,24 @@ void main(void) {
             go_flag_0 = go_flag;
         }
         
+        if (sensor_read == &IR_1 && adc_reading_number == 0){
+            // back to first sensor, update display val and ir meas array
+            IR_meas_array = IR_temp_array;
+        }
+        
         if (adc_flag != 0){
+            // TODO: could check if last measurement was processed or not
             adc_reading_number += 1;
             
             if (adc_reading_number != 1){
-                display_val = process_measurement(adc_reading, display_value);
-//                load_byte(display_val); // should have this happen on tmr
+                process_measurement(adc_reading, &IR_temp_array, &display_value);
                 adc_reading_number = update_sensor(adc_reading_number);
             }
                   
             adc_flag = 0;
+            PIE1bits.ADIE = 1;
         }
+        
     }
 }
 
@@ -140,12 +149,12 @@ void init(){
     // TMR1
     T1CON = 0b00110101;             // On, PS8
     
-    // display update
-    CCP6CON = 0b00001010;           // Compare generates software interrupt
-    CCPTMRS1bits.C6TSEL0 = 0;       // CCP6 -> TMR1
-    PIR4bits.CCP6IF = 0;            // clear flag
-    IPR4bits.CCP6IP = 0;            // low pri
-    PIE4bits.CCP6IE = 0;            // enable
+    CCP3CON = 0b00001010;
+    CCPTMRS0bits.C3TSEL1 = 0;       // CCP3 -> TMR1
+    CCPTMRS0bits.C3TSEL0 = 0;
+    PIR4bits.CCP3IF = 0;            // clear flag
+    IPR4bits.CCP3IP = 0;            // low pri
+    PIE4bits.CCP3IE = 0;            // enable
     
     RCONbits.IPEN = 1;              // Enable priority levels
     INTCONbits.GIEL = 1;            // Enable low-priority interrupts to CPU
@@ -153,6 +162,7 @@ void init(){
     INTCONbits.PEIE = 1;            // Enable external interrupts
     
     init_SPI();
+    init_display();
     init_go_button();
     init_ADC(sensor_next);
 
@@ -178,11 +188,20 @@ void init(){
 }
 
 
-char process_measurement(const short reading, char display_val){
+void process_measurement(const short reading, char *meas, char *disp){
 
-    char meas = convert_measurement_to_binary(reading, ADC_CUTOFF);
-    display_val |= meas << (sensor_read->led);  // set or clear bit
-    return display_val;
+    char val = convert_measurement_to_binary(reading, ADC_CUTOFF);
+    
+    if (val){
+        *meas |= 1 << (sensor_read->index);  // set bit
+        *disp |= 1 << (sensor_read->led);  // set bit
+    }
+    
+    else {
+        *meas &= ~(1 << (sensor_read->index)); // clear bit
+        *disp &= ~(1 << (sensor_read->led)); // clear bit
+    }
+    
 }
 
 char update_sensor(char reading){  
@@ -204,11 +223,11 @@ char update_sensor(char reading){
 void update_encoders(){
     
     static signed char lookup_table[] = {   
-                                            0, -1, 1, 0, 
-                                            1, 0, 0, -1,
-                                            -1, 0, 0, 1, 
-                                            0, 1, -1, 0
-                                        }; 
+        0, -1, 1, 0, 
+        1, 0, 0, -1,
+        -1, 0, 0, 1, 
+        0, 1, -1, 0
+    }; 
     
     char enc_dual = (PORTB & 0xF0) >> 4;
             
@@ -264,6 +283,7 @@ void __interrupt(low_priority) LoPriISR(void)
 			// ADC acquisition finished
             adc_reading = read_and_update_ADC(sensor_next);
             adc_flag = 1;
+            PIE1bits.ADIE = 0;  // disable until handled
             PIR1bits.ADIF = 0;              
             continue;
         }
@@ -292,16 +312,59 @@ void __interrupt(low_priority) LoPriISR(void)
         
         else if (PIR4bits.CCP6IF){
             
-            CCPR6L +=(char)(DISPLAY & 0x00FF);
+            CCPR6L += (char)(DISPLAY & 0x00FF);
             CCPR6H += (char)((DISPLAY >> 8) & 0x00FF);
             
-            blink_count = blink_handler(blink_count);
+            blink_count = blink_handler(blink_count, &display_value);
             load_byte(display_value);
             PIR4bits.CCP6IF = 0;
             continue;
         }
         // TODO load display byte every 20 ms, including blink
 		// Update PID measurments every 10 ms, inputs every 100ms
+
+        
+        else if (PIR4bits.CCP3IF){
+            CCPR3L += (char)(CONTROL & 0x00FF);
+            CCPR3H += (char)((CONTROL >> 8) & 0x00FF);
+            
+            signed char DCRight;
+            signed char DCLeft;
+            
+            convert_array_to_inputs(&DCRight, &DCLeft, IR_meas_array);
+            motors_drive(DCRight, DCLeft);
+            
+            PIR4bits.CCP3IF = 0;
+            continue;
+        }
+        
         break;  
     }
 }
+    
+void convert_array_to_inputs(signed char *dcR, signed char *dcL, const char meas){
+
+    switch(meas){
+        case 0 :
+        case 5 :
+        case 7 :
+            *dcR = 0;
+            *dcL = 0;
+            break;
+        case 1 :
+        case 3 :
+            *dcR = 25;
+            *dcL = 0;
+            break;
+        case 2 :
+            *dcR = 25;
+            *dcL = 25;
+            break;
+        case 4 :
+        case 6 :
+            *dcR = 0;
+            *dcL = 25;
+            break;             
+    }
+}
+

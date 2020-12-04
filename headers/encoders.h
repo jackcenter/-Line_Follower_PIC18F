@@ -21,8 +21,8 @@ struct Encoder
 };
 
 struct Encoder init_encoder(char, char);
-void start_encoders();
-void stop_encoders();
+void start_encoders(void);
+void stop_encoders(void);
 
 #endif
 

@@ -41,7 +41,7 @@ void disable_go_button(){
     INTCONbits.INT0IF = 0;  // Clear flag
 }
 
-char execute_delivery(){
+void execute_delivery(){
     // could add a light thing here
     static char x[] = {0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 
                        0x00};
@@ -52,25 +52,25 @@ char execute_delivery(){
     }
     
 	start_ADC();
+    PIR4bits.CCP3IF = 0;            // clear
+    PIE4bits.CCP3IE = 1;            // enable
 	motors_drive(0, 0);
 	motors_engage();
-
-	return 1;	// robot is running
 }
 
-char enter_sleep_mode(){
+void enter_sleep_mode(){
 	motors_disengage();
 	stop_ADC();
 	// could add a light thing here
 	display_value = 0;
 	Sleep();
-
-	return 0;	// robot was asleep
 }
 
-char pause_delivery(){
+void pause_delivery(){
     motors_brake();
 //	motors_disengage();
+    PIE4bits.CCP3IE = 0;            // disable 
+    PIR4bits.CCP3IF = 0;            // clear
     stop_ADC();
     
     static char x[] = {0x00, 0x01, 0x02, 0x04, 0x08, 0x10, 0x20, 0x40, 0x80, 
@@ -80,8 +80,6 @@ char pause_delivery(){
             load_byte(x[i]);
             __delay_ms(100);
     }
-    
-	return 0;	// robot is stopped, will continue on next push
 }
 
 char go_button_handler(char val){

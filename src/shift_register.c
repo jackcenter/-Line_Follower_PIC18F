@@ -21,8 +21,6 @@
 #define BLINK_ON 2          // DISPLAY cylces to stay on
 #define BLINK_OFF 18        // DISPLAY cycles to stay off
 
-extern char display_value;
-
 
 void init_SPI() {
 
@@ -38,8 +36,16 @@ void init_SPI() {
     PIR1bits.SSP1IF = 0;    // Clear serial bit flag
     PIE1bits.SSP1IE = 1;    // Enable interrupts
     IPR1bits.SSP1IP = 1;    // High priority
-    
-    load_byte(0xFF);
+}
+
+
+void init_display(){
+// display update
+    CCP6CON = 0b00001010;           // Compare generates software interrupt
+    CCPTMRS1bits.C6TSEL0 = 0;       // CCP6 -> TMR1
+    PIR4bits.CCP6IF = 0;            // clear flag
+    IPR4bits.CCP6IP = 0;            // low pri
+    PIE4bits.CCP6IE = 0;            // enable
 }
 
 
@@ -53,20 +59,21 @@ void display_byte() {
     LATCbits.RCL_L = 1;
 }
 
-char blink_handler(char count){
+
+char blink_handler(char count, char *disp){
     if (count != 0){
         --count;
     }
 
-    else if (display_value & 0b00000001){
+    else if (*disp & 0b00000001){
         // led is on
-        display_value ^= 0b00000001;    // toggle led off
+        *disp ^= 0b00000001;    // toggle led off
         count = BLINK_OFF;
     }
 
     else{
         // led is off
-        display_value ^= 0b00000001;    // toggle led on
+        *disp ^= 0b00000001;    // toggle led on
         count = BLINK_ON ;
     }
 
