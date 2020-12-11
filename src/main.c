@@ -30,6 +30,7 @@
 #pragma config FOSC=HS1, PWRTEN=ON, BOREN=ON, BORV=2, PLLCFG=OFF
 #pragma config WDTEN=OFF, CCP2MX=PORTC, XINST=OFF
 
+<<<<<<< HEAD
 #define IR0 0b00000001
 #define IR1 0b00000101
 #define IR2 0b00001001
@@ -38,6 +39,19 @@
 #define READINGS_MAX 2
 #define SENSORS_MAX 4
 #define ADC_CUTOFF 3500
+=======
+// ADCON2 Values
+#define IR0 0b00000001      // AN0 on
+#define IR1 0b00000101      // AN1 on
+#define IR2 0b00001001      // AN2 on
+#define IR3 0b00001101      // AN3 on
+#define IR4 0b00010001      // AN4 on
+
+// Constants
+#define READINGS_MAX 2      // Readings each analog sensor takes
+#define SENSORS_MAX 4       // 
+#define ADC_CUTOFF 1000
+>>>>>>> 5b0479f2bb62418c3a8474cfbf5b28d116824d75
 #define OBSERVE 5000        // ps8 instructions for 10ms
 #define CONTROL 50000       // ps8 instructions for 100ms
 #define DISPLAY 25000       // ps8 instructions for 50ms
@@ -84,20 +98,19 @@ void update_encoders(void);
 char convert_array_to_inputs(signed char *, signed char *, const char);
 
 void main(void) {
-	/* 
-	   TODO: update IR array after all sensors have been read
-	   (consider taking average of several measurements
-	   Read encoders and store values
-       Read IR array and store values	
-	*/
 
     init();
     char adc_reading_number = 0;
     
     while(1){
+<<<<<<< HEAD
        
         if (go_flag != go_flag_0){
             // Button has been pushed
+=======
+        if (go_flag != go_flag_0){		
+            // The pushbutton has been pressed		
+>>>>>>> 5b0479f2bb62418c3a8474cfbf5b28d116824d75
             if (go_flag == 1){
                 execute_delivery();
             }
@@ -110,20 +123,26 @@ void main(void) {
         }
         
         if (sensor_read == &IR_1 && adc_reading_number == 0){
-            // back to first sensor, update display val and ir meas array
+            // All sensors have been read, update the measurement array
             IR_meas_array = IR_temp_array;
         }
         
         if (adc_flag != 0){
+<<<<<<< HEAD
             // New ADC reading, ADC is paused until measurement is processed
+=======
+            // A new measurement was received
+>>>>>>> 5b0479f2bb62418c3a8474cfbf5b28d116824d75
             adc_reading_number += 1;
             
             if (adc_reading_number != 1){
+                // This is not the first measurment for this sensor
                 process_measurement(adc_reading, &IR_temp_array, &display_value);
                 adc_reading_number = update_sensor(adc_reading_number);
             }
                   
             adc_flag = 0;
+<<<<<<< HEAD
             ADCON0bits.GO = 1;      //Start acquisition then conversion
 //            PIE1bits.ADIE = 1;
         }
@@ -166,6 +185,9 @@ void main(void) {
             go_flag_0 = 0;
             count_stop = 0;
             enter_sleep_mode();
+=======
+            PIE1bits.ADIE = 1;  // Starts a new measurment cycle
+>>>>>>> 5b0479f2bb62418c3a8474cfbf5b28d116824d75
         }
         
     }
@@ -194,18 +216,19 @@ void init(){
     init_go_button();
     init_ADC(sensor_next);
 
+    // Fills Encoder struct
     encoder_A = init_encoder(ENC_1A, ENC_1B);
     encoder_B = init_encoder(ENC_2A, ENC_2B);
     stop_encoders();
     
     init_motors();
     
+    // Updates IRSensor struct values
     IR_1.next_sensor = &IR_2;
     IR_2.next_sensor = &IR_3;
     IR_3.next_sensor = &IR_1; 
 
-//	T1CON = 0b0000101;
-    
+    // Start up light show   
     for (int i = 0; i < 2; ++i){
         load_byte(0xFF);
         __delay_ms(500);
@@ -217,23 +240,35 @@ void init(){
 }
 
 
-void process_measurement(const short reading, char *meas, char *disp){
 
+void process_measurement(const short reading, char *meas, char *disp){
+    /* 
+    Updates the measurement char to contain a 1 if the sensor is reading above
+    ADC_CUTOFF, and 0 if not. Addtionally, these results are mirrored in the
+    display char which will be passed to the LED array.
+    */
     char val = convert_measurement_to_binary(reading, ADC_CUTOFF);
     
     if (val){
-        *meas |= 1 << (sensor_read->index);  // set bit
-        *disp |= 1 << (sensor_read->led);  // set bit
+        *meas |= 1 << (sensor_read->index);     // set bit
+        *disp |= 1 << (sensor_read->led);       // set bit
     }
     
     else {
-        *meas &= ~(1 << (sensor_read->index)); // clear bit
-        *disp &= ~(1 << (sensor_read->led)); // clear bit
+        *meas &= ~(1 << (sensor_read->index));  // clear bit
+        *disp &= ~(1 << (sensor_read->led));    // clear bit
     }
     
 }
 
+
 char update_sensor(char reading){  
+    /*
+    If the ADC measurement being collected is the last one for this sensor
+    based on READINGS_MAX, then load the next sensor. The next time this
+    subroutine is called, sensor_next will not equal sensor_read and the new
+    sensor, which is currently being read, will be loaded into sensor_read.
+    */
     
     if (sensor_next != sensor_read){
         // This was the last measurement from read
@@ -249,8 +284,13 @@ char update_sensor(char reading){
     return reading;
 }
 
+
 void update_encoders(){
-    
+    /*
+    When a new encoder value comes in, the lookup_table is referenced to
+    determinee whether to increment or decrement the encoder.
+    */
+
     static signed char lookup_table[] = {   
         0, -1, 1, 0, 
         1, 0, 0, -1,
@@ -264,6 +304,36 @@ void update_encoders(){
     char test = (enc_dual & 0b0011);
     encoder_A.reading = encoder_A.reading | test;
     encoder_A.count += lookup_table[encoder_A.reading & 0x0F];
+}
+
+
+void convert_array_to_inputs(signed char *dcR, signed char *dcL, const char meas){
+    /*
+    Converts the IR sensor array readings into proportional motor control
+    outputs.
+    */
+    switch(meas){
+        case 0 :
+        case 5 :
+        case 7 :
+            *dcR = 0;
+            *dcL = 0;
+            break;
+        case 1 :
+        case 3 :
+            *dcR = 25;
+            *dcL = 0;
+            break;
+        case 2 :
+            *dcR = 25;
+            *dcL = 25;
+            break;
+        case 4 :
+        case 6 :
+            *dcR = 0;
+            *dcL = 25;
+            break;             
+    }
 }
 
 
@@ -384,6 +454,7 @@ void __interrupt(low_priority) LoPriISR(void)
     }
 }
     
+<<<<<<< HEAD
 char convert_array_to_inputs(signed char *dcR, signed char *dcL, const char meas){
     
     char status;
@@ -433,3 +504,5 @@ char convert_array_to_inputs(signed char *dcR, signed char *dcL, const char meas
     return status;
 }
 
+=======
+>>>>>>> 5b0479f2bb62418c3a8474cfbf5b28d116824d75
