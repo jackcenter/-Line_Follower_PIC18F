@@ -1,16 +1,19 @@
 /*
  * File:   main.c
- * Author: Jack
+ * Author: Jack Center
  *
  * Created on November 17, 2020, 7:58 PM
+ * 
+ * This program drives a differential drive line-following between two
+ * predetermined locations on a PIC18F87K22. Resources currently assigned are:
  * 
  * TMR1 - main.c, PS 8
  * TMR2 - motors.c, PS 4
  *
- * CCP2 - TMR1, observer
- * CCP3 - TMR1, control
- * CCP4 - TMR2, motors.h
- * CCP5 - TMR2, motors.h
+ * CCP2 - TMR1, observer - measurement update timestep
+ * CCP3 - TMR1, control - output update timestep
+ * CCP4 - TMR2, motors.h - PWM
+ * CCP5 - TMR2, motors.h - PWM
  * CCP6 - TMR1, shift_register.h - display update
  * CCP7 - TMR1, go_button.h - debounce
  */
@@ -46,39 +49,42 @@
 #define DISPLAY 25000       // ps8 instructions for 50ms
 #define DEBOUNCE 10000      // ps8 instructions for 20ms
 
-// PORT B
+// PORT B encoder pins
 #define ENC_1A 5
 #define ENC_1B 4
 #define ENC_2A 7
 #define ENC_2B 6
 
-char go_flag = 0;
-char go_flag_0 = 0;
-char button_state = 0;
-char button_state_0 = 0;
-char count_lost = 0;
-char count_stop = 0;
+char go_flag = 0;           // Current pushbutton status
+char go_flag_0 = 0;         // Previous pushbutton status
+char button_state = 0;      // RB0 current state
+char button_state_0 = 0;    // RB0 previous state
+char count_lost = 0;        // Number of updates with a lost reading
+char count_stop = 0;        // Number of updates with a stop reading
 
-char adc_flag = 0;
-short adc_reading = 0;
-char IR_meas_array = 0;
-char IR_temp_array = 0;
+char adc_flag = 0;          // Flags the arrival of a new measurement
+short adc_reading = 0;      // Number of measurements from sensor
+char IR_meas_array = 0;     // Combined binary values of the sensorarray
+char IR_temp_array = 0;     // Buffer for the sensor array
 
+// structs for IRSensor data
 struct IRSensor IR_1 = {0b00000101, 0, 6, 1, 0};
 struct IRSensor IR_2 = {0b00001001, 1, 5, 0, 0};
 struct IRSensor IR_3 = {0b00001101, 2, 4, -1, 0};
 
-// const char adc_sensors[] = {IR1, IR2, IR3};
+// current sensor loaded in the ADC and the one for next cycle
 struct IRSensor *sensor_read = &IR_1;
 struct IRSensor *sensor_next = &IR_1;
 
+// structs for Encoders
 struct Encoder encoder_A; 
 struct Encoder encoder_B;
 char encoder_readings_old = 0;
 
-char display_value = 0;
-char blink_count = 0;
+char display_value = 0;     // Byte to display on the status array
+char blink_count = 0;       // Number of cycles for current blink status
 
+// function declarations
 void init(void);
 void run_sleep_routine(void);
 void process_measurement(const short, char *, char *);
@@ -284,41 +290,11 @@ void update_encoders(){
 }
 
 
-/******************************************************************************
- * HiPriISR interrupt service routine
- ******************************************************************************/
-
-void __interrupt() HiPriISR(void) {
-    
-    while(1) {
-        if (PIR1bits.SSP1IF) {
-            // SPI is ready
-			display_byte();
-            PIR1bits.SSP1IF = 0;
-            continue;
-        }
-        
-        else if (INTCONbits.INT0IF){
-            
-            CCPR7L = TMR1L + (char)(DEBOUNCE & 0x00FF);
-            CCPR7H = TMR1H + (char)((DEBOUNCE >> 8) & 0x00FF);
-            PIR4bits.CCP7IF = 0;
-            PIE4bits.CCP7IE = 1;
-
-            INTCONbits.INT0IE = 0; // disable interrupt until debounce complete
-            INTCONbits.INT0IF = 0;
-            
-            button_state_0 = PORTBbits.RB0;
-            continue;
-        }   
-        
-        
-        break;      
-    }
-}
-
-
 char convert_array_to_inputs(signed char *dcR, signed char *dcL, const char meas){
+    /*
+    Takes the most recent sensor array values and sets the appropriate
+    proportional control duty cycle value for each motor.
+    */    
     
     char status;
     // status 0: normal operation
@@ -334,8 +310,6 @@ char convert_array_to_inputs(signed char *dcR, signed char *dcL, const char meas
             break;
         case 7 :        // 111  stop signal
             status = 2;
-//            *dcR = 0;
-//            *dcL = 0;
             break;
         case 1 :        // 001 line left
             *dcR = 50;
@@ -369,6 +343,41 @@ char convert_array_to_inputs(signed char *dcR, signed char *dcL, const char meas
 
 
 /******************************************************************************
+ * HiPriISR interrupt service routine
+ ******************************************************************************/
+
+void __interrupt() HiPriISR(void) {
+    
+    while(1) {
+        if (PIR1bits.SSP1IF) {
+            // SPI is ready
+	    display_byte();
+            PIR1bits.SSP1IF = 0;
+            continue;
+        }
+        
+        else if (INTCONbits.INT0IF){
+            // Pushbutton state change
+            CCPR7L = TMR1L + (char)(DEBOUNCE & 0x00FF);
+            CCPR7H = TMR1H + (char)((DEBOUNCE >> 8) & 0x00FF);
+            PIR4bits.CCP7IF = 0;
+            PIE4bits.CCP7IE = 1;
+
+            INTCONbits.INT0IE = 0; // disable interrupt until debounce complete
+            INTCONbits.INT0IF = 0;
+            
+            button_state_0 = PORTBbits.RB0;
+            continue;
+        }   
+        
+        
+        break;      
+    }
+}
+
+
+
+/******************************************************************************
  * LoPriISR interrupt service routine
  ******************************************************************************/
 
@@ -377,10 +386,9 @@ void __interrupt(low_priority) LoPriISR(void)
     // Save temp copies of WREG, STATUS and BSR if needed.
     while(1) {
         if( PIR1bits.ADIF){    
-			// ADC acquisition finished
+	    // ADC acquisition finished
             adc_reading = read_and_update_ADC(sensor_next);
             adc_flag = 1;
-//            PIE1bits.ADIE = 0;  // disable until handled
             PIR1bits.ADIF = 0;              
             continue;
         }
@@ -418,10 +426,9 @@ void __interrupt(low_priority) LoPriISR(void)
             continue;
         }
 
-		// Update PID measurments every 10 ms, inputs every 100ms
-
         
         else if (PIR4bits.CCP3IF){
+            // Time to update the outputs
             CCPR3L += (char)(CONTROL & 0x00FF);
             CCPR3H += (char)((CONTROL >> 8) & 0x00FF);
             
