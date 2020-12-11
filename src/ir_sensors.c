@@ -10,7 +10,7 @@
 
 void init_ADC(struct IRSensor *sensor){
     ADCON1 = 0b00110000;    //Configure ADCON1 for AVdd(GND) and AVss(4.096V)
-    ADCON2 = 0b10010101;    //Configure ADCON2 for right justified; Tacq = 4Tad 
+    ADCON2 = 0b10101001;    //Configure ADCON2 for right justified; Tacq = 4Tad 
                             //and Tad = 16Tosc
 
     ANCON0bits.ANSEL2 = 1;  //Configure AN0 as analog input
@@ -41,7 +41,7 @@ void stop_ADC(){
 short read_and_update_ADC(struct IRSensor *next_sensor){
     short val = (ADRESH << 8) | ADRESL; //Save low/high values of ADC     
     ADCON0 = next_sensor->adcon0_value; //Configure ADCON0 to read current sensor;
-    ADCON0bits.GO = 1;                  //Start acquisition then conversion
+//    ADCON0bits.GO = 1;                  //Start acquisition then conversion
     return val;
 }
 

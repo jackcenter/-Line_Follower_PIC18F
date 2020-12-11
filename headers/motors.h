@@ -24,6 +24,8 @@ void motors_brake(void);
 void motors_drive(signed char, signed char);
 void motors_engage(void);
 void motors_disengage(void);
+void motors_turn_around(void);
+void motors_test(void);
 
 #endif
 

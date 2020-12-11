@@ -37,7 +37,7 @@
 #define IR4 0b00010001
 #define READINGS_MAX 2
 #define SENSORS_MAX 4
-#define ADC_CUTOFF 1000
+#define ADC_CUTOFF 3500
 #define OBSERVE 5000        // ps8 instructions for 10ms
 #define CONTROL 50000       // ps8 instructions for 100ms
 #define DISPLAY 25000       // ps8 instructions for 50ms
@@ -46,11 +46,15 @@
 // PORT B
 #define ENC_1A 5
 #define ENC_1B 4
+#define ENC_2A 7
+#define ENC_2B 6
 
 char go_flag = 0;
 char go_flag_0 = 0;
 char button_state = 0;
 char button_state_0 = 0;
+char count_lost = 0;
+char count_stop = 0;
 
 char adc_flag = 0;
 short adc_reading = 0;
@@ -66,6 +70,7 @@ struct IRSensor *sensor_read = &IR_1;
 struct IRSensor *sensor_next = &IR_1;
 
 struct Encoder encoder_A; 
+struct Encoder encoder_B;
 char encoder_readings_old = 0;
 
 char display_value = 0;
@@ -76,7 +81,7 @@ void run_sleep_routine(void);
 void process_measurement(const short, char *, char *);
 char update_sensor(char);
 void update_encoders(void);
-void convert_array_to_inputs(signed char *, signed char *, const char);
+char convert_array_to_inputs(signed char *, signed char *, const char);
 
 void main(void) {
 	/* 
@@ -87,30 +92,12 @@ void main(void) {
 	*/
 
     init();
-	
     char adc_reading_number = 0;
     
     while(1){
        
-/*        motors_drive(25, 25);
-        __delay_ms(1000);
-        
-        motors_brake();
-        __delay_ms(1000);
-        
-        motors_drive(-50, -50);
-        __delay_ms(1000);
-        
-        motors_brake();
-        __delay_ms(1000);
-        
-        motors_drive(-25, 75);
-        __delay_ms(1000);
-        
-        motors_brake();
-        __delay_ms(1000);
-*/
         if (go_flag != go_flag_0){
+            // Button has been pushed
             if (go_flag == 1){
                 execute_delivery();
             }
@@ -128,7 +115,7 @@ void main(void) {
         }
         
         if (adc_flag != 0){
-            // TODO: could check if last measurement was processed or not
+            // New ADC reading, ADC is paused until measurement is processed
             adc_reading_number += 1;
             
             if (adc_reading_number != 1){
@@ -137,7 +124,48 @@ void main(void) {
             }
                   
             adc_flag = 0;
-            PIE1bits.ADIE = 1;
+            ADCON0bits.GO = 1;      //Start acquisition then conversion
+//            PIE1bits.ADIE = 1;
+        }
+        
+        if (count_lost > 10){
+            // stop
+            pause_delivery();
+            // flash lights
+            
+            for (int i = 0; i < 10; ++i){
+                load_byte(0xFF);
+                __delay_ms(100);
+                load_byte(0x00);
+                __delay_ms(100);
+            }
+                       
+            // back up
+            
+            // clean up
+            go_flag = 0;
+            go_flag_0 = 0;
+            count_lost = 0;
+        }
+        
+        if (count_stop > 10){
+            // stop
+            pause_delivery();
+            // flash lights
+            for (int i = 0; i < 2; ++i){
+                load_byte(0xFF);
+                __delay_ms(1000);
+                load_byte(0x00);
+                __delay_ms(1000);
+            }
+            // turn around
+            motors_turn_around();
+            
+            // clean up
+            go_flag = 0;
+            go_flag_0 = 0;
+            count_stop = 0;
+            enter_sleep_mode();
         }
         
     }
@@ -167,6 +195,7 @@ void init(){
     init_ADC(sensor_next);
 
     encoder_A = init_encoder(ENC_1A, ENC_1B);
+    encoder_B = init_encoder(ENC_2A, ENC_2B);
     stop_encoders();
     
     init_motors();
@@ -283,7 +312,7 @@ void __interrupt(low_priority) LoPriISR(void)
 			// ADC acquisition finished
             adc_reading = read_and_update_ADC(sensor_next);
             adc_flag = 1;
-            PIE1bits.ADIE = 0;  // disable until handled
+//            PIE1bits.ADIE = 0;  // disable until handled
             PIR1bits.ADIF = 0;              
             continue;
         }
@@ -296,7 +325,7 @@ void __interrupt(low_priority) LoPriISR(void)
         }
         
         else if (PIR4bits.CCP7IF && PIE4bits.CCP7IE){
-            // Debounce time is over, don't really need to check if pressed
+            // Debounce time is over
             button_state = PORTBbits.RB0;
             
             if (button_state && button_state_0){ // both high
@@ -311,7 +340,7 @@ void __interrupt(low_priority) LoPriISR(void)
         }
         
         else if (PIR4bits.CCP6IF){
-            
+            // Update alive LED and load display
             CCPR6L += (char)(DISPLAY & 0x00FF);
             CCPR6H += (char)((DISPLAY >> 8) & 0x00FF);
             
@@ -320,7 +349,7 @@ void __interrupt(low_priority) LoPriISR(void)
             PIR4bits.CCP6IF = 0;
             continue;
         }
-        // TODO load display byte every 20 ms, including blink
+
 		// Update PID measurments every 10 ms, inputs every 100ms
 
         
@@ -330,9 +359,22 @@ void __interrupt(low_priority) LoPriISR(void)
             
             signed char DCRight;
             signed char DCLeft;
+            char status;
             
-            convert_array_to_inputs(&DCRight, &DCLeft, IR_meas_array);
-            motors_drive(DCRight, DCLeft);
+            status = convert_array_to_inputs(&DCRight, &DCLeft, IR_meas_array);
+            
+            if (status == 0){
+                // normal signal received
+                motors_drive(DCRight, DCLeft);
+                count_lost = 0;
+                count_stop = 0;
+            }
+            
+            else if (status == 1)
+                ++count_lost;
+            
+            else if (status == 2)
+                ++count_stop;
             
             PIR4bits.CCP3IF = 0;
             continue;
@@ -342,29 +384,52 @@ void __interrupt(low_priority) LoPriISR(void)
     }
 }
     
-void convert_array_to_inputs(signed char *dcR, signed char *dcL, const char meas){
-
+char convert_array_to_inputs(signed char *dcR, signed char *dcL, const char meas){
+    
+    char status;
+    // status 0: normal operation
+    //        1: no signal / erroneous signal
+    //        2: stop signal
+    
     switch(meas){
-        case 0 :
-        case 5 :
-        case 7 :
-            *dcR = 0;
-            *dcL = 0;
+        case 0 :        // 000  no signal
+            status = 1;
             break;
-        case 1 :
-        case 3 :
-            *dcR = 25;
-            *dcL = 0;
+        case 5 :        // 101  not sure
+            status = 1;
             break;
-        case 2 :
+        case 7 :        // 111  stop signal
+            status = 2;
+//            *dcR = 0;
+//            *dcL = 0;
+            break;
+        case 1 :        // 001 line left
+            *dcR = 50;
+            *dcL = 0;
+            status = 0;
+            break;
+        case 3 :        // 011 line slight left
+            *dcR = 35;
+            *dcL = 15;
+            status = 0;
+            break;
+        case 2 :        // 010 line center
             *dcR = 25;
             *dcL = 25;
+            status = 0;
             break;
-        case 4 :
-        case 6 :
+        case 6 :        // 110 line slight right
+            *dcR = 15;
+            *dcL = 35;
+            status = 0;
+            break;
+        case 4 :        // 100 line right
             *dcR = 0;
-            *dcL = 25;
+            *dcL = 50;
+            status = 0;
             break;             
     }
+    
+    return status;
 }
 

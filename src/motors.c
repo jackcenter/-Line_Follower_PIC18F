@@ -11,6 +11,8 @@
 #include <pic18f87k22.h>
 #include <motors.h>
 
+#define _XTAL_FREQ 16000000
+
 #define STBY LATGbits.LG0
 #define AIN1 LATGbits.LG1
 #define AIN2 LATGbits.LG2
@@ -99,4 +101,29 @@ void motors_engage(){
 
 void motors_disengage(){
     STBY = 0;
+}
+
+void motors_turn_around(){
+    motors_drive(25, -25);
+    __delay_ms(3000);
+}
+
+void motors_test(){
+       motors_drive(25, 25);
+        __delay_ms(1000);
+        
+        motors_brake();
+        __delay_ms(1000);
+        
+        motors_drive(-50, -50);
+        __delay_ms(1000);
+        
+        motors_brake();
+        __delay_ms(1000);
+        
+        motors_drive(-25, 75);
+        __delay_ms(1000);
+        
+        motors_brake();
+        __delay_ms(1000);
 }
