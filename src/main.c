@@ -30,16 +30,6 @@
 #pragma config FOSC=HS1, PWRTEN=ON, BOREN=ON, BORV=2, PLLCFG=OFF
 #pragma config WDTEN=OFF, CCP2MX=PORTC, XINST=OFF
 
-<<<<<<< HEAD
-#define IR0 0b00000001
-#define IR1 0b00000101
-#define IR2 0b00001001
-#define IR3 0b00001101
-#define IR4 0b00010001
-#define READINGS_MAX 2
-#define SENSORS_MAX 4
-#define ADC_CUTOFF 3500
-=======
 // ADCON2 Values
 #define IR0 0b00000001      // AN0 on
 #define IR1 0b00000101      // AN1 on
@@ -49,9 +39,8 @@
 
 // Constants
 #define READINGS_MAX 2      // Readings each analog sensor takes
-#define SENSORS_MAX 4       // 
-#define ADC_CUTOFF 1000
->>>>>>> 5b0479f2bb62418c3a8474cfbf5b28d116824d75
+#define SENSORS_MAX 4       
+#define ADC_CUTOFF 3500
 #define OBSERVE 5000        // ps8 instructions for 10ms
 #define CONTROL 50000       // ps8 instructions for 100ms
 #define DISPLAY 25000       // ps8 instructions for 50ms
@@ -103,14 +92,8 @@ void main(void) {
     char adc_reading_number = 0;
     
     while(1){
-<<<<<<< HEAD
-       
-        if (go_flag != go_flag_0){
-            // Button has been pushed
-=======
         if (go_flag != go_flag_0){		
             // The pushbutton has been pressed		
->>>>>>> 5b0479f2bb62418c3a8474cfbf5b28d116824d75
             if (go_flag == 1){
                 execute_delivery();
             }
@@ -128,11 +111,7 @@ void main(void) {
         }
         
         if (adc_flag != 0){
-<<<<<<< HEAD
             // New ADC reading, ADC is paused until measurement is processed
-=======
-            // A new measurement was received
->>>>>>> 5b0479f2bb62418c3a8474cfbf5b28d116824d75
             adc_reading_number += 1;
             
             if (adc_reading_number != 1){
@@ -142,7 +121,6 @@ void main(void) {
             }
                   
             adc_flag = 0;
-<<<<<<< HEAD
             ADCON0bits.GO = 1;      //Start acquisition then conversion
 //            PIE1bits.ADIE = 1;
         }
@@ -185,9 +163,8 @@ void main(void) {
             go_flag_0 = 0;
             count_stop = 0;
             enter_sleep_mode();
-=======
+
             PIE1bits.ADIE = 1;  // Starts a new measurment cycle
->>>>>>> 5b0479f2bb62418c3a8474cfbf5b28d116824d75
         }
         
     }
@@ -307,36 +284,6 @@ void update_encoders(){
 }
 
 
-void convert_array_to_inputs(signed char *dcR, signed char *dcL, const char meas){
-    /*
-    Converts the IR sensor array readings into proportional motor control
-    outputs.
-    */
-    switch(meas){
-        case 0 :
-        case 5 :
-        case 7 :
-            *dcR = 0;
-            *dcL = 0;
-            break;
-        case 1 :
-        case 3 :
-            *dcR = 25;
-            *dcL = 0;
-            break;
-        case 2 :
-            *dcR = 25;
-            *dcL = 25;
-            break;
-        case 4 :
-        case 6 :
-            *dcR = 0;
-            *dcL = 25;
-            break;             
-    }
-}
-
-
 /******************************************************************************
  * HiPriISR interrupt service routine
  ******************************************************************************/
@@ -369,6 +316,57 @@ void __interrupt() HiPriISR(void) {
         break;      
     }
 }
+
+
+char convert_array_to_inputs(signed char *dcR, signed char *dcL, const char meas){
+    
+    char status;
+    // status 0: normal operation
+    //        1: no signal / erroneous signal
+    //        2: stop signal
+    
+    switch(meas){
+        case 0 :        // 000  no signal
+            status = 1;
+            break;
+        case 5 :        // 101  not sure
+            status = 1;
+            break;
+        case 7 :        // 111  stop signal
+            status = 2;
+//            *dcR = 0;
+//            *dcL = 0;
+            break;
+        case 1 :        // 001 line left
+            *dcR = 50;
+            *dcL = 0;
+            status = 0;
+            break;
+        case 3 :        // 011 line slight left
+            *dcR = 35;
+            *dcL = 15;
+            status = 0;
+            break;
+        case 2 :        // 010 line center
+            *dcR = 25;
+            *dcL = 25;
+            status = 0;
+            break;
+        case 6 :        // 110 line slight right
+            *dcR = 15;
+            *dcL = 35;
+            status = 0;
+            break;
+        case 4 :        // 100 line right
+            *dcR = 0;
+            *dcL = 50;
+            status = 0;
+            break;             
+    }
+    
+    return status;
+}
+
 
 /******************************************************************************
  * LoPriISR interrupt service routine
@@ -453,56 +451,3 @@ void __interrupt(low_priority) LoPriISR(void)
         break;  
     }
 }
-    
-<<<<<<< HEAD
-char convert_array_to_inputs(signed char *dcR, signed char *dcL, const char meas){
-    
-    char status;
-    // status 0: normal operation
-    //        1: no signal / erroneous signal
-    //        2: stop signal
-    
-    switch(meas){
-        case 0 :        // 000  no signal
-            status = 1;
-            break;
-        case 5 :        // 101  not sure
-            status = 1;
-            break;
-        case 7 :        // 111  stop signal
-            status = 2;
-//            *dcR = 0;
-//            *dcL = 0;
-            break;
-        case 1 :        // 001 line left
-            *dcR = 50;
-            *dcL = 0;
-            status = 0;
-            break;
-        case 3 :        // 011 line slight left
-            *dcR = 35;
-            *dcL = 15;
-            status = 0;
-            break;
-        case 2 :        // 010 line center
-            *dcR = 25;
-            *dcL = 25;
-            status = 0;
-            break;
-        case 6 :        // 110 line slight right
-            *dcR = 15;
-            *dcL = 35;
-            status = 0;
-            break;
-        case 4 :        // 100 line right
-            *dcR = 0;
-            *dcL = 50;
-            status = 0;
-            break;             
-    }
-    
-    return status;
-}
-
-=======
->>>>>>> 5b0479f2bb62418c3a8474cfbf5b28d116824d75
